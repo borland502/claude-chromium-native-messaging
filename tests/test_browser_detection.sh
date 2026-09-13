@@ -130,6 +130,10 @@ setup_test_env() {
     TEST_TMP_DIR=$(mktemp -d)
     export HOME="$TEST_TMP_DIR/home"
     mkdir -p "$HOME"
+    # Keep tests hermetic: the invoking shell may have CLAUDE_CONFIG_DIR /
+    # XDG_CONFIG_HOME set (e.g. an XDG-spec Claude Code install), which would
+    # otherwise leak into path-resolution assertions below.
+    unset CLAUDE_CONFIG_DIR XDG_CONFIG_HOME XDG_DATA_HOME
 }
 
 teardown_test_env() {
@@ -1244,12 +1248,14 @@ test_code_host_path_returns_without_existence_check() {
     setup_test_env
     source_setup_functions
 
-    # Even with a fake HOME, the function should return a path
+    # Even with a fake HOME, the function should return a path. With no
+    # CLAUDE_CONFIG_DIR/XDG_CONFIG_HOME set, it falls back to
+    # ~/.config/claude (see the XDG precedence tests below for overrides).
     local result
     result=$(get_claude_code_native_host_path)
 
-    assert_contains "$result" ".claude/chrome/chrome-native-host" \
-        "Should return path containing .claude/chrome/chrome-native-host"
+    assert_contains "$result" ".config/claude/chrome/chrome-native-host" \
+        "Should return path containing .config/claude/chrome/chrome-native-host"
 
     # Verify the path does NOT exist (known issue: no existence check)
     ((TESTS_RUN++)) || true
@@ -1260,6 +1266,43 @@ test_code_host_path_returns_without_existence_check() {
         ((TESTS_PASSED++)) || true
         echo -e "${GREEN}PASS${NC}: Path exists (unexpected but valid)"
     fi
+
+    teardown_test_env
+}
+
+test_code_host_path_prefers_claude_config_dir() {
+    echo -e "\n${BLUE}=== Test: get_claude_code_native_host_path honors CLAUDE_CONFIG_DIR ===${NC}"
+    setup_test_env
+    source_setup_functions
+
+    export CLAUDE_CONFIG_DIR="$HOME/custom-claude-dir"
+
+    local result
+    result=$(get_claude_code_native_host_path)
+
+    assert_equals "$CLAUDE_CONFIG_DIR/chrome/chrome-native-host" "$result" \
+        "Should use CLAUDE_CONFIG_DIR when set, even if unset elsewhere"
+
+    unset CLAUDE_CONFIG_DIR
+    teardown_test_env
+}
+
+test_code_host_path_falls_back_to_legacy_dotclaude() {
+    echo -e "\n${BLUE}=== Test: get_claude_code_native_host_path finds legacy ~/.claude when it exists ===${NC}"
+    setup_test_env
+    source_setup_functions
+
+    # No CLAUDE_CONFIG_DIR/XDG_CONFIG_HOME set, but a real native host exists
+    # under the legacy ~/.claude location — it should be found by existence
+    # check even though it's checked last.
+    mkdir -p "$HOME/.claude/chrome"
+    touch "$HOME/.claude/chrome/chrome-native-host"
+
+    local result
+    result=$(get_claude_code_native_host_path)
+
+    assert_equals "$HOME/.claude/chrome/chrome-native-host" "$result" \
+        "Should find the legacy ~/.claude host when only it exists on disk"
 
     teardown_test_env
 }
@@ -1365,6 +1408,8 @@ run_all_tests() {
     # 12. Claude Code host path
     echo -e "\n${BLUE}── Claude Code Host Path ───────────────────────────────────${NC}"
     test_code_host_path_returns_without_existence_check
+    test_code_host_path_prefers_claude_config_dir
+    test_code_host_path_falls_back_to_legacy_dotclaude
 
     # Restore HOME
     export HOME="$ORIG_HOME"

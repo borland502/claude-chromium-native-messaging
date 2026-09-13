@@ -182,7 +182,7 @@ get_app_support_base() {
     if [[ "$OS" == "macos" ]]; then
         echo "$HOME/Library/Application Support"
     elif [[ "$OS" == "linux" ]]; then
-        echo "$HOME/.config"
+        echo "${XDG_CONFIG_HOME:-$HOME/.config}"
     else
         echo ""
     fi
@@ -204,7 +204,7 @@ get_claude_native_host_path() {
         local paths=(
             "/opt/Claude/chrome-native-host"
             "/usr/lib/claude/chrome-native-host"
-            "$HOME/.local/share/Claude/chrome-native-host"
+            "${XDG_DATA_HOME:-$HOME/.local/share}/Claude/chrome-native-host"
             # Snap packages
             "/snap/claude/current/chrome-native-host"
             # Flatpak
@@ -221,7 +221,25 @@ get_claude_native_host_path() {
 }
 
 get_claude_code_native_host_path() {
-    echo "$HOME/.claude/chrome/chrome-native-host"
+    # Claude Code stores its config (and the chrome-native-host it creates via
+    # /chrome) under $CLAUDE_CONFIG_DIR when set, otherwise under
+    # $XDG_CONFIG_HOME/claude for installs that opted into the XDG Base
+    # Directory spec, falling back to the legacy ~/.claude.
+    local xdg_config="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local candidates=(
+        "${CLAUDE_CONFIG_DIR:+$CLAUDE_CONFIG_DIR/chrome/chrome-native-host}"
+        "$xdg_config/claude/chrome/chrome-native-host"
+        "$HOME/.claude/chrome/chrome-native-host"
+    )
+
+    local path
+    for path in "${candidates[@]}"; do
+        [[ -n "$path" && -f "$path" ]] && { echo "$path"; return 0; }
+    done
+
+    # Nothing found yet (e.g. /chrome hasn't been run). Report the path that
+    # would be used, honoring CLAUDE_CONFIG_DIR / XDG over the legacy default.
+    echo "${CLAUDE_CONFIG_DIR:-$xdg_config/claude}/chrome/chrome-native-host"
 }
 
 

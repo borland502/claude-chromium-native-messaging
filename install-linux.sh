@@ -15,9 +15,31 @@ set -euo pipefail
 # Constants
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Claude Code's native host and manifest locations
-readonly CLAUDE_CODE_HOST="$HOME/.claude/chrome/chrome-native-host"
-readonly CLAUDE_CODE_MANIFEST_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
+# XDG Base Directory support: honor $XDG_CONFIG_HOME when set (defaults to
+# ~/.config, matching every browser's own fallback).
+readonly XDG_CONFIG_HOME_RESOLVED="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# Claude Code's native host location. Claude Code stores this under
+# $CLAUDE_CONFIG_DIR when set, otherwise under $XDG_CONFIG_HOME/claude for
+# XDG-spec installs, falling back to the legacy ~/.claude.
+resolve_claude_code_host() {
+    local candidates=(
+        "${CLAUDE_CONFIG_DIR:+$CLAUDE_CONFIG_DIR/chrome/chrome-native-host}"
+        "$XDG_CONFIG_HOME_RESOLVED/claude/chrome/chrome-native-host"
+        "$HOME/.claude/chrome/chrome-native-host"
+    )
+
+    local path
+    for path in "${candidates[@]}"; do
+        [[ -n "$path" && -f "$path" ]] && { echo "$path"; return 0; }
+    done
+
+    # Nothing found yet (e.g. /chrome hasn't been run). Report the path that
+    # would be used, honoring CLAUDE_CONFIG_DIR / XDG over the legacy default.
+    echo "${CLAUDE_CONFIG_DIR:-$XDG_CONFIG_HOME_RESOLVED/claude}/chrome/chrome-native-host"
+}
+readonly CLAUDE_CODE_HOST="$(resolve_claude_code_host)"
+readonly CLAUDE_CODE_MANIFEST_DIR="$XDG_CONFIG_HOME_RESOLVED/google-chrome/NativeMessagingHosts"
 readonly CLAUDE_CODE_MANIFEST_NAME="com.anthropic.claude_code_browser_extension"
 
 # Claude Desktop manifest name (for reference)
@@ -29,31 +51,31 @@ readonly OFFICIAL_EXT_ID="fcoeoabgfenejglbffodgkkbkcdhcgfn"
 # Browser directories where Claude Code doesn't install manifests by default
 # (Claude Code only installs to google-chrome and microsoft-edge)
 declare -ra EXTRA_BROWSER_DIRS=(
-    "$HOME/.config/chromium"
-    "$HOME/.config/BraveSoftware/Brave-Browser"
-    "$HOME/.config/vivaldi"
-    "$HOME/.config/opera"
-    "$HOME/.config/opera-gx"
-    "$HOME/.config/yandex-browser"
-    "$HOME/.config/naver-whale"
-    "$HOME/.config/coccoc"
-    "$HOME/.config/slimjet"
-    "$HOME/.config/ungoogled-chromium"
-    "$HOME/.config/Sidekick"
-    "$HOME/.config/GensparkSoftware/Genspark-Browser"
-    "$HOME/.config/net.imput.helium"
-    "$HOME/.config/iron"
-    "$HOME/.config/cent-browser"
-    "$HOME/.config/comodo-dragon"
-    "$HOME/.config/avast-secure-browser"
-    "$HOME/.config/avg-secure-browser"
-    "$HOME/.config/epic"
-    "$HOME/.config/torch"
-    "$HOME/.config/Maxthon"
-    "$HOME/.config/iridium"
-    "$HOME/.config/Orion"
-    "$HOME/.config/Falkon"
-    "$HOME/.config/Colibri"
+    "$XDG_CONFIG_HOME_RESOLVED/chromium"
+    "$XDG_CONFIG_HOME_RESOLVED/BraveSoftware/Brave-Browser"
+    "$XDG_CONFIG_HOME_RESOLVED/vivaldi"
+    "$XDG_CONFIG_HOME_RESOLVED/opera"
+    "$XDG_CONFIG_HOME_RESOLVED/opera-gx"
+    "$XDG_CONFIG_HOME_RESOLVED/yandex-browser"
+    "$XDG_CONFIG_HOME_RESOLVED/naver-whale"
+    "$XDG_CONFIG_HOME_RESOLVED/coccoc"
+    "$XDG_CONFIG_HOME_RESOLVED/slimjet"
+    "$XDG_CONFIG_HOME_RESOLVED/ungoogled-chromium"
+    "$XDG_CONFIG_HOME_RESOLVED/Sidekick"
+    "$XDG_CONFIG_HOME_RESOLVED/GensparkSoftware/Genspark-Browser"
+    "$XDG_CONFIG_HOME_RESOLVED/net.imput.helium"
+    "$XDG_CONFIG_HOME_RESOLVED/iron"
+    "$XDG_CONFIG_HOME_RESOLVED/cent-browser"
+    "$XDG_CONFIG_HOME_RESOLVED/comodo-dragon"
+    "$XDG_CONFIG_HOME_RESOLVED/avast-secure-browser"
+    "$XDG_CONFIG_HOME_RESOLVED/avg-secure-browser"
+    "$XDG_CONFIG_HOME_RESOLVED/epic"
+    "$XDG_CONFIG_HOME_RESOLVED/torch"
+    "$XDG_CONFIG_HOME_RESOLVED/Maxthon"
+    "$XDG_CONFIG_HOME_RESOLVED/iridium"
+    "$XDG_CONFIG_HOME_RESOLVED/Orion"
+    "$XDG_CONFIG_HOME_RESOLVED/Falkon"
+    "$XDG_CONFIG_HOME_RESOLVED/Colibri"
 )
 
 # Colors
